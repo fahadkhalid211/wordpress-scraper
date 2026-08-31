@@ -1,0 +1,14 @@
+{
+  "name": "glymph-kb-scraper",
+  "version": "1.0.0",
+  "private": true,
+  "type": "commonjs",
+  "scripts": {
+    "build-kb": "node scripts/scrape-kb.js"
+  },
+  "dependencies": {
+    "cheerio": "^1.0.0",
+    "pdf-parse": "^1.1.1"
+  },
+  "engines": { "node": ">=18" }
+}
