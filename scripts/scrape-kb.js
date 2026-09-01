@@ -13,7 +13,7 @@ const pdfParse = require("pdf-parse");
 const SITE = process.env.SITE_URL || "https://glymphville.com";
 const OUT_FILE = path.join(__dirname, "..", "kb.json");
 const CHUNK_WORDS = 180;
-const MAX_PAGES = 300;
+const MAX_PAGES = 2000;
 
 async function fetchJson(url) {
   const res = await fetch(url, { headers: { "User-Agent": "GlymphKBBot/1.0" } });
@@ -46,14 +46,22 @@ async function fetchAllFromEndpoint(type) {
 }
 
 async function getContentItems() {
-  console.log("Fetching posts and pages via REST API...");
-  const [posts, pages] = await Promise.all([
-    fetchAllFromEndpoint("posts"),
-    fetchAllFromEndpoint("pages"),
-  ]);
-  return [...posts, ...pages].slice(0, MAX_PAGES);
-}
+  console.log("Discovering post types via REST API...");
+  const types = await fetchJson(`${SITE}/wp-json/wp/v2/types`);
+  const restBases = Object.values(types)
+    .map((t) => t.rest_base)
+    .filter(Boolean);
 
+  console.log("Found types:", restBases.join(", "));
+
+  const all = [];
+  for (const base of restBases) {
+    const items = await fetchAllFromEndpoint(base);
+    console.log(base + ": " + items.length + " items");
+    all.push(...items.map((i) => ({ ...i, _type: base })));
+  }
+  return all.slice(0, MAX_PAGES);
+}
 function stripHtml(html) {
   const $ = cheerio.load(html || "");
   $("script,style").remove();
@@ -104,7 +112,7 @@ async function main() {
 
       chunkText(text, CHUNK_WORDS).forEach((chunk) => {
         if (chunk.trim().length < 40) return;
-        kb.push({ id: id++, source: item.type || "page", url, title, text: chunk });
+        kb.push({ id: id++, source: item._type || "page", url, title, text: chunk });
       });
 
       extractPdfLinks(rawHtml).forEach((p) => seenPdfs.add(p));
