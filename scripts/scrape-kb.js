@@ -1,6 +1,6 @@
 /**
  * Glymph KB Scraper
- * Crawls the WordPress sitemap, extracts page text, finds every linked PDF,
+ * Pulls all posts/pages via WP REST API, extracts page text, finds every linked PDF,
  * extracts PDF text, chunks everything, writes kb.json.
  * Run manually: node scripts/scrape-kb.js
  * Run on schedule: see .github/workflows/update-kb.yml
@@ -15,10 +15,10 @@ const OUT_FILE = path.join(__dirname, "..", "kb.json");
 const CHUNK_WORDS = 180;
 const MAX_PAGES = 300;
 
-async function fetchText(url) {
+async function fetchJson(url) {
   const res = await fetch(url, { headers: { "User-Agent": "GlymphKBBot/1.0" } });
   if (!res.ok) throw new Error(url + " -> " + res.status);
-  return res.text();
+  return res.json();
 }
 
 async function fetchBuffer(url) {
@@ -27,33 +27,37 @@ async function fetchBuffer(url) {
   return Buffer.from(await res.arrayBuffer());
 }
 
-async function getSitemapUrls() {
-  const candidates = [
-    SITE + "/sitemap_index.xml",
-    SITE + "/sitemap.xml",
-    SITE + "/wp-sitemap.xml"
-  ];
-  let urls = new Set();
-  for (const c of candidates) {
+async function fetchAllFromEndpoint(type) {
+  const results = [];
+  let page = 1;
+  while (results.length < MAX_PAGES) {
+    let items;
     try {
-      const xml = await fetchText(c);
-      const locs = [...xml.matchAll(/<loc>([^<]+)<\/loc>/g)].map((m) => m[1]);
-      const subSitemaps = locs.filter((l) => l.includes("sitemap") && l.endsWith(".xml"));
-      const pageUrls = locs.filter((l) => !l.includes("sitemap"));
-      pageUrls.forEach((u) => urls.add(u));
-      for (const sm of subSitemaps.slice(0, 30)) {
-        try {
-          const subXml = await fetchText(sm);
-          [...subXml.matchAll(/<loc>([^<]+)<\/loc>/g)]
-            .map((m) => m[1])
-            .filter((l) => !l.includes("sitemap"))
-            .forEach((u) => urls.add(u));
-        } catch (e) {}
-      }
-      if (urls.size) break;
-    } catch (e) {}
+      items = await fetchJson(`${SITE}/wp-json/wp/v2/${type}?per_page=100&page=${page}`);
+    } catch (e) {
+      break;
+    }
+    if (!Array.isArray(items) || items.length === 0) break;
+    results.push(...items);
+    if (items.length < 100) break;
+    page++;
   }
-  return [...urls].slice(0, MAX_PAGES);
+  return results;
+}
+
+async function getContentItems() {
+  console.log("Fetching posts and pages via REST API...");
+  const [posts, pages] = await Promise.all([
+    fetchAllFromEndpoint("posts"),
+    fetchAllFromEndpoint("pages"),
+  ]);
+  return [...posts, ...pages].slice(0, MAX_PAGES);
+}
+
+function stripHtml(html) {
+  const $ = cheerio.load(html || "");
+  $("script,style").remove();
+  return $.root().text().replace(/\s+/g, " ").trim();
 }
 
 function chunkText(text, words) {
@@ -65,24 +69,8 @@ function chunkText(text, words) {
   return chunks;
 }
 
-function extractMainText($) {
-  $("script,style,nav,footer,header,noscript").remove();
-  const candidates = ["main", "article", "#content", ".entry-content", "body"];
-  for (const sel of candidates) {
-    const el = $(sel).first();
-    if (el.length) {
-      const t = el.text().replace(/\s+/g, " ").trim();
-      if (t.length > 80) return t;
-    }
-  }
-  return $("body").text().replace(/\s+/g, " ").trim();
-}
-
-async function scrapePage(url) {
-  const html = await fetchText(url);
-  const $ = cheerio.load(html);
-  const title = $("title").first().text().trim() || url;
-  const text = extractMainText($);
+function extractPdfLinks(html) {
+  const $ = cheerio.load(html || "");
   const pdfLinks = [];
   $("a[href$='.pdf'], a[href*='.pdf?']").each((i, el) => {
     let href = $(el).attr("href");
@@ -90,7 +78,7 @@ async function scrapePage(url) {
     if (href.startsWith("/")) href = SITE.replace(/\/$/, "") + href;
     pdfLinks.push(href);
   });
-  return { url, title, text, pdfLinks };
+  return pdfLinks;
 }
 
 async function scrapePdf(url) {
@@ -100,25 +88,29 @@ async function scrapePdf(url) {
 }
 
 async function main() {
-  console.log("Discovering pages via sitemap...");
-  const pageUrls = await getSitemapUrls();
-  console.log("Found " + pageUrls.length + " pages");
+  const items = await getContentItems();
+  console.log("Found " + items.length + " posts/pages");
 
   const kb = [];
   const seenPdfs = new Set();
   let id = 0;
 
-  for (const url of pageUrls) {
+  for (const item of items) {
     try {
-      const { title, text, pdfLinks } = await scrapePage(url);
+      const url = item.link;
+      const title = stripHtml(item.title?.rendered || "") || url;
+      const rawHtml = item.content?.rendered || "";
+      const text = stripHtml(rawHtml);
+
       chunkText(text, CHUNK_WORDS).forEach((chunk) => {
         if (chunk.trim().length < 40) return;
-        kb.push({ id: id++, source: "page", url, title, text: chunk });
+        kb.push({ id: id++, source: item.type || "page", url, title, text: chunk });
       });
-      pdfLinks.forEach((p) => seenPdfs.add(p));
-      console.log("Scraped page:", url);
+
+      extractPdfLinks(rawHtml).forEach((p) => seenPdfs.add(p));
+      console.log("Scraped:", url);
     } catch (e) {
-      console.warn("Skip page:", url, e.message);
+      console.warn("Skip item:", item.link, e.message);
     }
   }
 
