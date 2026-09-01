@@ -49,8 +49,8 @@ app.post("/api/chat", async (req, res) => {
       model: "openai/gpt-oss-20b",
       messages: [
         {
-          role: "system",
-          content: "Answer using only the context below. If the answer isn't in the context, say you don't know.\n\nContext:\n" + context,
+      role: "system",
+      content: "You are a friendly chat assistant for the Glymph family website. Answer using only the context below. Reply in plain conversational text — no markdown, no headers, no bullet lists, no asterisks. Keep answers short and natural, like a text message, 2-4 sentences unless more detail is truly needed. If the answer isn't in the context, say you don't know.\n\nContext:\n" + context,
         },
         { role: "user", content: query },
       ],
