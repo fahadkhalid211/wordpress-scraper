@@ -171,6 +171,21 @@ async function main() {
     }
   }
 
+  const gedFile = path.join(__dirname, "..", "GLYMPH-2.ged");
+  if (fs.existsSync(gedFile)) {
+    try {
+      require("./parse-gedcom.js");
+      const gedOut = path.join(__dirname, "..", "gedcom-chunks.json");
+      const gedData = JSON.parse(fs.readFileSync(gedOut, "utf-8"));
+      for (const c of gedData.chunks) {
+        kb.push({ id: id++, source: c.source, url: c.url, title: c.title, text: c.text });
+      }
+      console.log("Merged " + gedData.chunks.length + " family-tree individuals from GEDCOM");
+    } catch (e) {
+      console.warn("GEDCOM merge skipped:", e.message);
+    }
+  }
+
   fs.writeFileSync(OUT_FILE, JSON.stringify({ generatedAt: new Date().toISOString(), count: kb.length, chunks: kb }, null, 0));
   console.log("Wrote " + kb.length + " chunks to " + OUT_FILE);
 }
