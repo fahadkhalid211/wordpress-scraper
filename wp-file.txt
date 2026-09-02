@@ -1,0 +1,122 @@
+<!-- ========================================================================
+GLYMPH FAMILY CHATBOT — Floating Widget (calls live API)
+Paste this ENTIRE block into WPCode as an "HTML" snippet.
+Insertion: Footer (before </body>) — Location: Site Wide
+======================================================================== -->
+<style>
+#glymph-chat-launcher {
+  position: fixed; bottom: 20px; right: 20px; width: 60px; height: 60px;
+  border-radius: 50%; background: linear-gradient(135deg,#6a11cb,#2575fc);
+  display: flex; align-items: center; justify-content: center; cursor: pointer;
+  box-shadow: 0 4px 14px rgba(0,0,0,0.25); z-index: 999999; transition: transform 0.2s;
+}
+#glymph-chat-launcher:hover { transform: scale(1.08); }
+#glymph-chat-launcher svg { width: 28px; height: 28px; fill: #fff; }
+#glymph-chat-window {
+  position: fixed; bottom: 90px; right: 20px; width: 340px; max-width: 90vw;
+  height: 480px; max-height: 75vh; background: #fff; border-radius: 16px;
+  box-shadow: 0 8px 30px rgba(0,0,0,0.25); display: none; flex-direction: column;
+  overflow: hidden; z-index: 999999; font-family: -apple-system,Segoe UI,Roboto,sans-serif;
+}
+#glymph-chat-window.open { display: flex; }
+#glymph-chat-header {
+  background: linear-gradient(135deg,#6a11cb,#2575fc); color: #fff;
+  padding: 14px 16px; display: flex; align-items: center; gap: 10px;
+}
+#glymph-chat-header .avatar {
+  width: 34px; height: 34px; border-radius: 50%; background: #fff;
+  display: flex; align-items: center; justify-content: center; font-weight: bold; color: #6a11cb;
+}
+#glymph-chat-header .status {
+  width: 8px; height: 8px; border-radius: 50%; background: #4ade80; margin-left: auto;
+}
+#glymph-chat-header .title { font-size: 14px; font-weight: 600; }
+#glymph-chat-header .subtitle { font-size: 11px; opacity: 0.85; }
+#glymph-chat-messages {
+  flex: 1; padding: 14px; overflow-y: auto; background: #f7f7fb; display: flex; flex-direction: column; gap: 10px;
+}
+.glymph-msg { max-width: 80%; padding: 10px 13px; border-radius: 14px; font-size: 13.5px; line-height: 1.4; }
+.glymph-msg.bot { background: #fff; align-self: flex-start; border-bottom-left-radius: 4px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+.glymph-msg.user { background: linear-gradient(135deg,#6a11cb,#2575fc); color: #fff; align-self: flex-end; border-bottom-right-radius: 4px; }
+.glymph-msg.typing { font-style: italic; color: #888; background: #fff; }
+#glymph-chat-input-row { display: flex; padding: 10px; border-top: 1px solid #eee; background: #fff; }
+#glymph-chat-input {
+  flex: 1; border: 1px solid #ddd; border-radius: 20px; padding: 9px 14px;
+  font-size: 13.5px; outline: none;
+}
+#glymph-chat-send {
+  margin-left: 8px; background: linear-gradient(135deg,#6a11cb,#2575fc); border: none;
+  color: #fff; width: 38px; height: 38px; border-radius: 50%; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+}
+</style>
+
+<div id="glymph-chat-launcher">
+  <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.13 2 11.2c0 2.87 1.44 5.44 3.7 7.14L5 22l4.06-1.63c.94.24 1.93.37 2.94.37 5.52 0 10-4.13 10-9.2S17.52 2 12 2z"/></svg>
+</div>
+
+<div id="glymph-chat-window">
+  <div id="glymph-chat-header">
+    <div class="avatar">G</div>
+    <div>
+      <div class="title">Glymph Family Bot</div>
+      <div class="subtitle">Ask me anything about the family</div>
+    </div>
+    <div class="status"></div>
+  </div>
+  <div id="glymph-chat-messages">
+    <div class="glymph-msg bot">Hi! Ask me about reunions, family members, events, or anything on the site.</div>
+  </div>
+  <div id="glymph-chat-input-row">
+    <input id="glymph-chat-input" type="text" placeholder="Type a message..." />
+    <button id="glymph-chat-send">➤</button>
+  </div>
+</div>
+
+<script>
+(function() {
+  const API_URL = "https://glymph-chatbot.onrender.com/api/chat";
+
+  const launcher = document.getElementById('glymph-chat-launcher');
+  const win = document.getElementById('glymph-chat-window');
+  const messages = document.getElementById('glymph-chat-messages');
+  const input = document.getElementById('glymph-chat-input');
+  const sendBtn = document.getElementById('glymph-chat-send');
+
+  launcher.addEventListener('click', () => win.classList.toggle('open'));
+
+  function addMessage(text, sender) {
+    const div = document.createElement('div');
+    div.className = 'glymph-msg ' + sender;
+    div.textContent = text;
+    messages.appendChild(div);
+    messages.scrollTop = messages.scrollHeight;
+    return div;
+  }
+
+  async function sendMessage() {
+    const text = input.value.trim();
+    if (!text) return;
+    addMessage(text, 'user');
+    input.value = '';
+    const typingEl = addMessage('Typing...', 'typing');
+
+    try {
+      const res = await fetch(API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: text })
+      });
+      const data = await res.json();
+      typingEl.remove();
+      addMessage(data.answer || "Sorry, I couldn't find an answer.", 'bot');
+    } catch (e) {
+      typingEl.remove();
+      addMessage("Connection error. Please try again.", 'bot');
+    }
+  }
+
+  sendBtn.addEventListener('click', sendMessage);
+  input.addEventListener('keypress', (e) => { if (e.key === 'Enter') sendMessage(); });
+})();
+</script>
