@@ -11,18 +11,24 @@ const cheerio = require("cheerio");
 const pdfParse = require("pdf-parse");
 
 const SITE = process.env.SITE_URL || "https://glymphville.com";
+const WP_USER = process.env.WP_USER || "";
+const WP_APP_PASSWORD = process.env.WP_APP_PASSWORD || "";
+const AUTH_HEADER =
+  WP_USER && WP_APP_PASSWORD
+    ? { Authorization: "Basic " + Buffer.from(`${WP_USER}:${WP_APP_PASSWORD}`).toString("base64") }
+    : {};
 const OUT_FILE = path.join(__dirname, "..", "kb.json");
 const CHUNK_WORDS = 180;
 const MAX_PAGES = 2000;
 
 async function fetchJson(url) {
-  const res = await fetch(url, { headers: { "User-Agent": "GlymphKBBot/1.0" } });
+  const res = await fetch(url, { headers: { "User-Agent": "GlymphKBBot/1.0", ...AUTH_HEADER } });
   if (!res.ok) throw new Error(url + " -> " + res.status);
   return res.json();
 }
 
 async function fetchBuffer(url) {
-  const res = await fetch(url, { headers: { "User-Agent": "GlymphKBBot/1.0" } });
+  const res = await fetch(url, { headers: { "User-Agent": "GlymphKBBot/1.0", ...AUTH_HEADER } });
   if (!res.ok) throw new Error(url + " -> " + res.status);
   return Buffer.from(await res.arrayBuffer());
 }
