@@ -95,6 +95,13 @@ async function scrapePdf(url) {
   return data.text.replace(/\s+/g, " ").trim();
 }
 
+async function getMediaItems() {
+  console.log("Fetching media library...");
+  const media = await fetchAllFromEndpoint("media");
+  console.log("media: " + media.length + " items");
+  return media;
+}
+
 async function main() {
   const items = await getContentItems();
   console.log("Found " + items.length + " posts/pages");
@@ -119,6 +126,28 @@ async function main() {
       console.log("Scraped:", url);
     } catch (e) {
       console.warn("Skip item:", item.link, e.message);
+    }
+  }
+
+  const mediaItems = await getMediaItems();
+  for (const m of mediaItems) {
+    try {
+      const srcUrl = m.source_url || "";
+      const title = stripHtml(m.title?.rendered || "") || srcUrl;
+      const caption = stripHtml(m.caption?.rendered || "");
+      const desc = stripHtml(m.description?.rendered || "");
+      const alt = m.alt_text || "";
+
+      if (/\.pdf$/i.test(srcUrl)) {
+        seenPdfs.add(srcUrl);
+      } else {
+        const metaText = [title, caption, desc, alt].filter(Boolean).join(". ");
+        if (metaText.trim().length >= 20) {
+          kb.push({ id: id++, source: "media", url: m.link || srcUrl, title, text: metaText });
+        }
+      }
+    } catch (e) {
+      console.warn("Skip media:", m.id, e.message);
     }
   }
 
