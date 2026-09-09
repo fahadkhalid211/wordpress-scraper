@@ -5,6 +5,13 @@ on:
     - cron: "0 3 * * *"
   workflow_dispatch: {}
 
+permissions:
+  contents: write
+
+concurrency:
+  group: update-kb
+  cancel-in-progress: false
+
 jobs:
   update:
     runs-on: ubuntu-latest
@@ -13,16 +20,24 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
+      - name: Pull latest main
+        run: |
+          git config user.name "kb-bot"
+          git config user.email "kb-bot@users.noreply.github.com"
+          git pull origin main
       - run: npm install
       - run: node scripts/scrape-kb.js
         env:
           WP_USER: ${{ secrets.WP_USER }}
           WP_APP_PASSWORD: ${{ secrets.WP_APP_PASSWORD }}
       - run: node scripts/embed-kb.js
-      - run: |
-          git config user.name "kb-bot"
-          git config user.email "kb-bot@users.noreply.github.com"
+      - name: Commit and push
+        run: |
           git add kb.json kb-embedded.json
           git diff --cached --quiet || git commit -m "Auto-update KB"
-          git pull --rebase origin main
-          git push
+          for i in 1 2 3 4 5; do
+            git push origin HEAD:main && break
+            echo "Push rejected, retrying..."
+            git pull --rebase origin main
+            sleep 3
+          done
