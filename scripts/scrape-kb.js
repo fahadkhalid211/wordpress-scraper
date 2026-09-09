@@ -22,13 +22,13 @@ const CHUNK_WORDS = 180;
 const MAX_PAGES = 2000;
 
 async function fetchJson(url) {
-  const res = await fetch(url, { headers: { "User-Agent": "GlymphKBBot/1.0", ...AUTH_HEADER } });
+  const res = await fetch(url, { headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36", "Accept": "application/json", ...AUTH_HEADER } });
   if (!res.ok) throw new Error(url + " -> " + res.status);
   return res.json();
 }
 
 async function fetchBuffer(url) {
-  const res = await fetch(url, { headers: { "User-Agent": "GlymphKBBot/1.0", ...AUTH_HEADER } });
+  const res = await fetch(url, { headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36", "Accept": "application/json", ...AUTH_HEADER } });
   if (!res.ok) throw new Error(url + " -> " + res.status);
   return Buffer.from(await res.arrayBuffer());
 }
