@@ -87,8 +87,8 @@ app.post("/api/chat", async (req, res) => {
       sources,
     });
   } catch (e) {
-    console.error(e);
-    res.status(500).json({ error: "server error" });
+    console.error("CHAT ERROR:", e);
+    res.status(500).json({ error: "server error", detail: e.message || String(e) });
   }
 });
 
